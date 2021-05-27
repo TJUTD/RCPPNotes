@@ -1,0 +1,1 @@
+# Eddelbuettel, Dirk. Seamless R and C++ integration with Rcpp. New York: Springer, 2013.
