@@ -1,0 +1,390 @@
+---
+title: Notes for Seamless R and C++ Integration with Rcpp (2)
+output: html_document
+---
+
+\newcommand{\bx}{\mathbf{x}}
+\newcommand{\bu}{\mathbf{u}}
+
+```{R setup, include = FALSE}
+knitr::opts_chunk$set(comment = NA, prompt = TRUE)
+library(inline)
+library(Rcpp)
+```
+
+
+
+Modules 
+```{r}
+inc <- '
+  using namespace Rcpp;
+  double norm( double x, double y ) {
+    return sqrt( x*x + y*y );
+  }
+  RCPP_MODULE(mod) {
+    function( "norm", &norm );
+  }
+'
+fx <- cxxfunction(signature(), plugin = "Rcpp", include = inc, verbose = T)
+mod <- Module("mod", getDynLib(fx))
+
+mod$norm( 3, 4 )
+
+```
+
+```{r}
+unifModCode <- '
+class Uniform {
+  public:
+  Uniform(double min_, double max_) : min(min_), max(max_) {}
+
+  NumericVector draw(int n) {
+    RNGScope scope;
+    return runif( n, min, max );
+  }
+
+  private:
+    double min, max;
+};
+
+using namespace Rcpp;
+/// create an external pointer to a Uniform object
+RcppExport SEXP Uniform__new(SEXP min_, SEXP max_) {
+  // convert inputs to appropriate C++ types
+  double min = as<double>(min_), max = as<double>(max_);
+  // create a pointer to an Uniform object and wrap it
+  // as an external pointer
+  Rcpp::XPtr<Uniform> ptr( new Uniform( min, max ), true );
+  // return the external pointer to the R side
+  return ptr;
+}
+
+/// invoke the draw method
+RcppExport SEXP Uniform__draw( SEXP xp, SEXP n_ ) {
+  // grab the object as a XPtr (smart pointer) to Uniform
+  Rcpp::XPtr<Uniform> ptr(xp);
+  // convert the parameter to int
+  int n = as<int>(n_);
+  // invoke the function
+  NumericVector res = ptr->draw( n );
+  // return the result to R
+  return res;
+}
+'
+
+fx_unif <- cxxfunction(includes = unifModCode, plugin = "Rcpp" , verbose = T)
+getDynLib(fx_unif)
+
+setClass( "Uniform", representation( pointer = "externalptr" ) )
+Uniform_method <- function(name) {
+  paste( "Uniform", name, sep = "__" )
+}
+setMethod( "$", "Uniform", function(x, name ) {
+  function(...) .Call( Uniform_method(name) , x@pointer , ... )
+} )
+setMethod( "initialize", "Uniform", function(.Object, ...) {
+  .Object@pointer <- .Call( Uniform_method("new"), ... )
+  .Object
+} )
+u <- new( "Uniform", 0, 10 )
+u$draw( 10L )
+```
+
+
+```{r}
+code <- '
+class Bar {
+public:
+  Bar(double x_) : x(x_), nread(0), nwrite(0) {}
+
+  double get_x( ) {
+    nread++;
+    return x;
+  }
+
+  void set_x( double x_) {
+    nwrite++;
+    x = x_;
+  }
+
+  IntegerVector stats() const {
+    return IntegerVector::create(_["read"] = nread,
+                                  _["write"] = nwrite);
+  }
+
+  private:
+    double x;
+    int nread, nwrite;
+  };
+
+  RCPP_MODULE(mod_bar) {
+    class_<Bar>( "Bar" )
+    .constructor<double>()
+    .property( "x", &Bar::get_x, &Bar::set_x )
+    .method( "stats", &Bar::stats,
+              "vector indicating the number of times x has been read and written")
+  ;
+}
+'
+fx_bar <- cxxfunction(includes = code, plugin = "Rcpp" , verbose = T)
+mod_bar <- Module("mod_bar", getDynLib(fx_bar))
+
+Bar <- mod_bar$Bar
+b <- new( Bar, 10 )
+b$x + b$x
+b$stats()
+b$x <- 10
+b$stats()
+```
+
+Sugar
+```{r pi}
+library(rbenchmark)
+
+code <- '
+  int N = Rcpp::as<int>(xi);
+  RNGScope scope; // ensure RNG gets set/reset
+  NumericVector x = runif(N);
+  NumericVector y = runif(N);
+  NumericVector d = sqrt(x*x+y*y);
+  return wrap(4.0 * sum(d < 1.0) / N);
+'
+
+piR <- function(N) {
+  x <- runif(N)
+  y <- runif(N)
+  d <- sqrt(x^2 + y^2)
+  return(4 * sum(d < 1.0) / N)
+}
+
+# get C++ version from source file
+piSugar <- cxxfunction(signature(xi="numeric"), 
+                       body = code, 
+                       plugin = "Rcpp" , verbose = T)
+N <- 1e6
+set.seed(42)
+resR <- piR(N)
+
+set.seed(42)
+resCpp <- piSugar(N)
+## important: check results are identical with RNG seeded
+stopifnot(identical(resR, resCpp))
+
+res <- benchmark(piR(N), piSugar(N), order="relative")
+print(res[,1:4])
+```
+
+RArmadillo
+```{r fastlm}
+src <- '
+Rcpp::NumericMatrix Xr(Xs);
+Rcpp::NumericVector yr(ys);
+int n = Xr.nrow(), k = Xr.ncol();
+arma::mat X(Xr.begin(), n, k, false);
+arma::colvec y(yr.begin(), yr.size(), false);
+int df = n - k;
+
+// fit model y ~ X, extract residuals
+arma::colvec coef = arma::solve(X, y);
+arma::colvec res = y - X*coef;
+
+double s2 = std::inner_product(res.begin(), res.end(),
+res.begin(), 0.0)/df;
+// std.errors of coefficients
+arma::colvec sderr = arma::sqrt(s2 *
+arma::diagvec(arma::pinv(arma::trans(X)*X)));
+
+return Rcpp::List::create(Rcpp::Named("coefficients")=coef,
+                          Rcpp::Named("stderr") =sderr,
+                          Rcpp::Named("df") =df);
+'
+fLm <- cxxfunction(signature(Xs="numeric", ys="numeric"), src, plugin="RcppArmadillo")
+
+y <- log(trees$Volume)
+X <- cbind(1, log(trees$Girth))
+frm <- formula(log(Volume) ~ log(Girth))
+benchmark(fLm(X, y), lm(frm, data=trees), 
+          columns = c("test", "replications","elapsed", "relative"),
+          order="relative", replications=1000)
+```
+
+```{r kalman}
+FirstKalmanR <- function(pos) {
+  kalmanfilter <- function(z) {
+    dt <- 1
+    A <- matrix( c( 1, 0, dt, 0, 0, 0, # x
+                    0, 1, 0, dt, 0, 0, # y
+                    0, 0, 1, 0, dt, 0, # Vx
+                    0, 0, 0, 1, 0, dt, # Vy
+                    0, 0, 0, 0, 1, 0, # Ax
+                    0, 0, 0, 0, 0, 1), # Ay
+                 6, 6, byrow=TRUE)
+    H <- matrix( c(1, 0, 0, 0, 0, 0,
+                   0, 1, 0, 0, 0, 0),
+                 2, 6, byrow=TRUE)
+    Q <- diag(6)
+    R <- 1000 * diag(2)
+    N <- nrow(pos)
+    y <- matrix(NA, N, 2)
+    
+    ## predicted state and covariance
+    xprd <- A %*% xest
+    pprd <- A %*% pest %*% t(A) + Q
+    ## estimation
+    S <- H %*% t(pprd) %*% t(H) + R
+    B <- H %*% t(pprd)
+    kalmangain <- t(solve(S, B))
+    
+    ## est. state and cov., assign to vars in parent env
+    xest <<- xprd + kalmangain %*% (z - H %*% xprd)
+    pest <<- pprd - kalmangain %*%H%*% pprd
+    
+    ## compute the estimated measurements
+    y <- H %*% xest
+  }
+  
+  xest <- matrix(0, 6, 1)
+  pest <- matrix(0, 6, 6)
+  
+  for (i in 1:nrow(pos)) {
+    y[i,] <- kalmanfilter(t(pos[i,,drop=FALSE]))
+  }
+  invisible(y)
+}
+
+
+KalmanR <- function(pos) {
+  kalmanfilter <- function(z) {
+    ## predicted state and covariance
+    xprd <- A %*% xest
+    pprd <- A %*% pest %*% t(A) + Q
+    
+    ## estimation
+    S <- H %*% t(pprd) %*% t(H) + R
+    B <- H %*% t(pprd)
+    ## kalmangain <- (S \ B)'
+    kalmangain <- t(solve(S, B))
+    
+    ## estimated state and covariance, assign to vars in parent env
+    xest <<- xprd + kalmangain %*% (z - H %*% xprd)
+    pest <<- pprd - kalmangain %*%H%*% pprd
+    
+    ## compute the estimated measurements
+    y <- H %*% xest
+  }
+  
+  dt <- 1
+  A <- matrix( c( 1, 0, dt, 0, 0, 0, # x
+                  0, 1, 0, dt, 0, 0, # y
+                  0, 0, 1, 0, dt, 0, # Vx
+                  0, 0, 0, 1, 0, dt, # Vy
+                  0, 0, 0, 0, 1, 0, # Ax
+                  0, 0, 0, 0, 0, 1), # Ay
+               6, 6, byrow=TRUE)
+  H <- matrix( c(1, 0, 0, 0, 0, 0,
+                 0, 1, 0, 0, 0, 0),
+               2, 6, byrow=TRUE)
+  Q <- diag(6)
+  R <- 1000 * diag(2)
+  
+  N <- nrow(pos)
+  y <- matrix(NA, N, 2)
+  
+  xest <- matrix(0, 6, 1)
+  pest <- matrix(0, 6, 6)
+  
+  for (i in 1:nrow(pos)) {
+    y[i,] <- kalmanfilter(t(pos[i,,drop=FALSE]))
+  }
+  
+  invisible(y)
+}
+
+kalmanClass <- '
+using namespace arma;
+
+class Kalman {
+  private:
+  mat A, H, Q, R, xest, pest;
+  double dt;
+  public:
+  // constructor, sets up data structures
+  Kalman() : dt(1.0) {
+    A.eye(6,6);
+    A(0,2) = A(1,3) = A(2,4) = A(3,5) = dt;
+    H.zeros(2,6);
+    H(0,0) = H(1,1) = 1.0;
+    Q.eye(6,6);
+    R = 1000 * eye(2,2);
+
+    xest.zeros(6,1);
+    pest.zeros(6,6);
+  }
+
+  // sole member function: estimate model
+  mat estimate(const mat & Z) {
+    unsigned int n = Z.n_rows, k = Z.n_cols;
+    mat Y = zeros(n, k);
+    mat xprd, pprd, S, B, kalmangain;
+    colvec z, y;
+
+    for (unsigned int i = 0; i<n; i++) {
+      colvec z = Z.row(i).t();
+      // predicted state and covariance
+      xprd = A * xest;
+      pprd = A * pest * A.t() + Q;
+      // estimation
+      S=H * pprd.t() * H.t() + R;
+      B=H * pprd.t();
+      // kalmangain = t(S \ B)
+      kalmangain = trans(solve(S, B));
+  
+      // estimated state and covariance
+      xest = xprd + kalmangain * (z - H * xprd);
+      pest = pprd - kalmangain * H * pprd;
+
+      // compute the estimated measurements
+      y=H * xest;
+      Y.row(i) = y.t();
+    }
+    return Y;
+  }
+};
+'
+
+kalmanSrc <- '
+mat Z = as<mat>(ZS); // passed from R
+Kalman K;
+mat Y = K.estimate(Z);
+return wrap(Y);
+'
+
+KalmanCpp <- cxxfunction(signature(ZS = "numeric"),
+                         body = kalmanSrc,
+                         include = kalmanClass,
+                         plugin = "RcppArmadillo",
+                         verbose = T)
+
+require(rbenchmark)
+require(compiler)
+FirstKalmanRC <- cmpfun(FirstKalmanR)
+KalmanRC <- cmpfun(KalmanR)
+
+pos <- matrix(rnorm(100), nrow = 50)
+
+stopifnot(identical(KalmanR(pos), KalmanRC(pos)),
+          all.equal(KalmanR(pos), KalmanCpp(pos)),
+          identical(FirstKalmanR(pos), FirstKalmanRC(pos)),
+          all.equal(KalmanR(pos), FirstKalmanR(pos)))
+res <- benchmark(KalmanR(pos), KalmanRC(pos), FirstKalmanR(pos),
+                 FirstKalmanRC(pos), KalmanCpp(pos), 
+                 columns = c("test", "replications", "elapsed", "relative"),
+                 order="relative", replications=100)
+
+print(res)
+```
+
+
+
+
+

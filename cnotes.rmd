@@ -85,6 +85,7 @@ convolution_fun <- cxxfunction(signature(a = "numeric", b = "numeric"),
 convolution_fun( 1:4, 2:5 )
 ```
 
+includes
 
 ```{r Includes}
 inc <- '
@@ -111,6 +112,7 @@ fun <- cxxfunction(signature(xs = "numeric",
 fun(2.2, 3L)
 ```
 
+plugin
 
 ```{r Plugins}
 src <- '
@@ -144,6 +146,7 @@ x <- cbind(rep(1,30),x)
 fun(y, x)
 ```
 
+exception handling
 
 ```{r Exceptions}
 src <- '
@@ -163,25 +166,159 @@ fun(3)
 # Error in fun("abc") : Not compatible with requested type: [type=character; target=integer].
 ```
 
+IntegerVector class
+
+```{r forloopprod}
+src <- '
+  Rcpp::IntegerVector vec(vx);
+  int prod = 1;
+  for (int i=0; i<vec.size(); i++) {
+    prod *= vec[i];
+  }
+  return Rcpp::wrap(prod);
+'
+fun <- cxxfunction(signature(vx = "integer"), 
+                   body = src,
+                   plugin = "Rcpp", verbose = T)
+fun(1:10) 
+```
+
+```{r stlprod}
+src <- '
+  Rcpp::IntegerVector vec(vx);
+  return Rcpp::wrap(std::accumulate(vec.begin(),vec.end(),
+                              1, std::multiplies<int>()));
+'
+fun <- cxxfunction(signature(vx = "integer"),  
+                   body = src,
+                   plugin = "Rcpp", verbose = T)
+fun(1:10)
+```
+
+
+NumericVector class
+```{r }
+src <- '
+  Rcpp::NumericVector invec(vx);
+  Rcpp::NumericVector outvec(vx);
+  for (int i=0; i<invec.size(); i++) {
+    outvec[i] = log(invec[i]);
+  }
+  return outvec;
+'
+fun <- cxxfunction(signature(vx = "numeric"),
+                   body = src, plugin = "Rcpp", verbose = T)
+x <- seq(1.0, 3.0, by = 1)
+cbind(x, fun(x))
+```
+
+    - clone
+```{r clone}
+src <- '
+  Rcpp::NumericVector invec(vx);
+  Rcpp::NumericVector outvec = Rcpp::clone(vx);
+  for (int i=0; i<invec.size(); i++) {
+    outvec[i] = log(invec[i]);
+  }
+  return outvec;
+'
+fun <- cxxfunction(signature(vx = "numeric"),
+                   body = src, plugin = "Rcpp", verbose = T)
+x <- seq(1.0, 3.0, by = 1)
+cbind(x, fun(x))
+```
+
+    - sugar
+```{r sugar}
+src <- '
+  Rcpp::NumericVector invec(vx);
+  Rcpp::NumericVector outvec = log(invec);
+  return outvec;
+'
+fun <- cxxfunction(signature(vx = "numeric"),
+                   body = src, plugin = "Rcpp", verbose = T)
+x <- seq(1.0, 3.0, by = 1)
+cbind(x, fun(x))
+```
+
+NumericMatrix 
+```{r}
+src <- '
+  Rcpp::NumericMatrix mat = Rcpp::clone<Rcpp::NumericMatrix>(mx);
+  std::transform(mat.begin(), mat.end(), mat.begin(), ::sqrt);
+  return mat;
+'
+fun <- cxxfunction(signature(mx = "numeric"),
+                   body = src, plugin = "Rcpp", verbose = T)
+orig <- matrix(1:9, 3, 3)
+fun(orig)
+```
+
+Named class
+```{r}
+src <- '
+  Rcpp::NumericVector x = 
+      Rcpp::NumericVector::create(
+          Rcpp::Named("mean") = 1.23,
+          Rcpp::Named("dim") = 42,
+          Rcpp::Named("cnt") = 12);
+  return x; 
+'
+fun <- cxxfunction(signature(), body = src, plugin = "Rcpp", verbose = T)
+fun()
+```
+
+```{r}
+src <- '
+  Rcpp::NumericVector x = 
+      Rcpp::NumericVector::create(
+          _["mean"] = 1.23,
+          _["dim"] = 42,
+          _["cnt"] = 12);
+  return x; 
+'
+fun <- cxxfunction(signature(), body = src, plugin = "Rcpp", verbose = T)
+fun()
+```
+
+DataFrame class
+```{r}
+src <- '
+    Rcpp::IntegerVector v = Rcpp::IntegerVector::create(7,8,9);
+    std::vector<std::string> s(3);
+    s[0] = "x";
+    s[1] = "y";
+    s[2] = "z";
+    return Rcpp::DataFrame::create(Rcpp::Named("a")=v,
+    Rcpp::Named("b")=s);
+'
+fun <- cxxfunction(signature(), body = src, plugin = "Rcpp", verbose = T)
+fun()
+```
 
 
 
+R mathematics library 
+```{r}
+src <- '
+    Rcpp::NumericVector x(xx);
+    int n = x.size();
+    Rcpp::NumericVector y1(n),y2(n),y3(n);
+  
+    for (int i=0; i<n; i++) {
+        // accessing function via remapped R header
+        y1[i] = ::Rf_pnorm5(x[i], 0.0, 1.0, 1, 0);
 
+        // or accessing same function via Rcpps namespace R
+        y2[i] = R::pnorm(x[i], 0.0, 1.0, 1, 0);
+    }
+    // or using Rcpp sugar which is vectorized
+    y3 = Rcpp::pnorm(x);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return Rcpp::DataFrame::create( Rcpp::Named("R") = y1,
+                                    Rcpp::Named("Rf_") = y2,
+                                    Rcpp::Named("sugar") = y3);
+'
+fun <- cxxfunction(signature(xx = "numeric"), body = src, plugin = "Rcpp", verbose = T)
+fun(1:5)
+```
