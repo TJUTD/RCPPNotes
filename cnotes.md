@@ -1,7 +1,7 @@
 Notes for Seamless R and C++ Integration with Rcpp
 ================
 
-VAR(1) $\mathbf{x}_t = A \mathbf{x}_{t-1} + \mathbf{u}_t$
+VAR(1)$\mathbf{x}_t = A \mathbf{x}_{t-1} + \mathbf{u}_t$
 
 ``` r
 > # coefficent matrix and error terms
