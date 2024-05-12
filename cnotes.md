@@ -1,10 +1,5 @@
-Notes for Seamless R and C++ Integration with Rcpp
-================
-
 VAR(1)
-```math
-\mathbf{x}_t = A \mathbf{x}_{t-1} + \mathbf{u}_t
-```
+**x**<sub>*t*</sub> = *A***x**<sub>*t* − 1</sub> + **u**<sub>*t*</sub>
 
 ``` r
 > # coefficent matrix and error terms
@@ -28,7 +23,7 @@ VAR(1)
 > acf(rData[,2], main = expression(x[2]))
 ```
 
-![](cnotes_files/figure-gfm/VAR_r-1.png)<!-- -->
+![](cnotes_files/figure-markdown_github/VAR_r-1.png)
 
 ``` r
 > library(inline)
@@ -66,9 +61,9 @@ VAR(1)
 ```
 
                 test replications elapsed relative user.self sys.self
-    1  rcppSim(a, u)          100    0.01        1      0.01        0
-    2     rSim(a, u)          100    0.95       95      0.95        0
-    3 compRsim(a, u)          100    0.96       96      0.94        0
+    1  rcppSim(a, u)          100    0.02      1.0      0.02        0
+    3 compRsim(a, u)          100    0.93     46.5      0.92        0
+    2     rSim(a, u)          100    0.94     47.0      0.94        0
 
 ``` r
 > src <- '
@@ -115,11 +110,11 @@ VAR(1)
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c641b7128( SEXP a, SEXP b) ;
+      22 : SEXP file1c9074176415( SEXP a, SEXP b) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c641b7128(SEXP a, SEXP b) {
+      26 : SEXP file1c9074176415(SEXP a, SEXP b) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector xa(a);
@@ -202,11 +197,11 @@ includes
       25 : 
       26 : // declarations
       27 : extern "C" {
-      28 : SEXP file400c478c4e1f( SEXP xs, SEXP is) ;
+      28 : SEXP file1c90130677c( SEXP xs, SEXP is) ;
       29 : }
       30 : 
       31 : // definition
-      32 : SEXP file400c478c4e1f(SEXP xs, SEXP is) {
+      32 : SEXP file1c90130677c(SEXP xs, SEXP is) {
       33 : BEGIN_RCPP
       34 : 
       35 :   double x = Rcpp::as<double>(xs);
@@ -288,11 +283,11 @@ plugin
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400cab613fb( SEXP ys, SEXP Xs) ;
+      22 : SEXP file1c905bfe66e2( SEXP ys, SEXP Xs) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400cab613fb(SEXP ys, SEXP Xs) {
+      26 : SEXP file1c905bfe66e2(SEXP ys, SEXP Xs) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector yr(ys);
@@ -327,13 +322,13 @@ plugin
 
     $coef
              [,1]
-    [1,] 1.928047
-    [2,] 4.873795
+    [1,] 2.133406
+    [2,] 5.034368
 
     $se
               [,1]
-    [1,] 0.2018124
-    [2,] 0.1955062
+    [1,] 0.1890157
+    [2,] 0.2108935
 
     $df
     [1] 28
@@ -381,11 +376,11 @@ exception handling
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c82e850( SEXP x) ;
+      22 : SEXP file1c901cb842b3( SEXP x) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c82e850(SEXP x) {
+      26 : SEXP file1c901cb842b3(SEXP x) {
       27 : BEGIN_RCPP
       28 : 
       29 :   int dx = Rcpp::as<int>(x);
@@ -454,11 +449,11 @@ IntegerVector class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c6b5f2729( SEXP vx) ;
+      22 : SEXP file1c901a067504( SEXP vx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c6b5f2729(SEXP vx) {
+      26 : SEXP file1c901a067504(SEXP vx) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::IntegerVector vec(vx);
@@ -517,11 +512,11 @@ IntegerVector class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c277fe37( SEXP vx) ;
+      22 : SEXP file1c9010652b6e( SEXP vx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c277fe37(SEXP vx) {
+      26 : SEXP file1c9010652b6e(SEXP vx) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::IntegerVector vec(vx);
@@ -581,11 +576,11 @@ NumericVector class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c5ac2232f( SEXP vx) ;
+      22 : SEXP file1c9058cc331d( SEXP vx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c5ac2232f(SEXP vx) {
+      26 : SEXP file1c9058cc331d(SEXP vx) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector invec(vx);
@@ -652,11 +647,11 @@ NumericVector class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c71cd796d( SEXP vx) ;
+      22 : SEXP file1c9072906b24( SEXP vx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c71cd796d(SEXP vx) {
+      26 : SEXP file1c9072906b24(SEXP vx) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector invec(vx);
@@ -720,11 +715,11 @@ NumericVector class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c1f6d3add( SEXP vx) ;
+      22 : SEXP file1c9064853113( SEXP vx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c1f6d3add(SEXP vx) {
+      26 : SEXP file1c9064853113(SEXP vx) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector invec(vx);
@@ -785,11 +780,11 @@ NumericMatrix
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c7c89181b( SEXP mx) ;
+      22 : SEXP file1c9039667bcc( SEXP mx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c7c89181b(SEXP mx) {
+      26 : SEXP file1c9039667bcc(SEXP mx) {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericMatrix mat = Rcpp::clone<Rcpp::NumericMatrix>(mx);
@@ -852,11 +847,11 @@ Named class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c64553d9( ) ;
+      22 : SEXP file1c901b761892( ) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c64553d9() {
+      26 : SEXP file1c901b761892() {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector x = 
@@ -917,11 +912,11 @@ Named class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c60c93d82( ) ;
+      22 : SEXP file1c9053683e63( ) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c60c93d82() {
+      26 : SEXP file1c9053683e63() {
       27 : BEGIN_RCPP
       28 : 
       29 :   Rcpp::NumericVector x = 
@@ -985,11 +980,11 @@ DataFrame class
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c3b526f1c( ) ;
+      22 : SEXP file1c902e7c6b88( ) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c3b526f1c() {
+      26 : SEXP file1c902e7c6b88() {
       27 : BEGIN_RCPP
       28 : 
       29 :     Rcpp::IntegerVector v = Rcpp::IntegerVector::create(7,8,9);
@@ -1066,11 +1061,11 @@ R mathematics library
       19 : 
       20 : // declarations
       21 : extern "C" {
-      22 : SEXP file400c5c76273( SEXP xx) ;
+      22 : SEXP file1c90fec416a( SEXP xx) ;
       23 : }
       24 : 
       25 : // definition
-      26 : SEXP file400c5c76273(SEXP xx) {
+      26 : SEXP file1c90fec416a(SEXP xx) {
       27 : BEGIN_RCPP
       28 : 
       29 :     Rcpp::NumericVector x(xx);
